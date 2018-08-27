@@ -35,11 +35,15 @@ Stretch goals:
 
 ### Hypothesis:
 
+### Added:
+- deadline to claim back ether and its limit
 
 ### Pending
-- the stretch goals
+- some stretch goals
+- how test block limit trespassing?
 
 ### Missings 
+- test for claim
 
 
 ### Other

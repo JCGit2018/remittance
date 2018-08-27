@@ -13,6 +13,7 @@ contract('Remittance', function(accounts) {
 
     const EXCHANGE_SHOP_HASH = web3.sha3("exchangeShopSecret");
     const BENEFICIARY_HASH   = web3.sha3("beneficiarySecret");
+    const MAX_DELTA_BLOCKS   = 20;
 
     console.log(accounts);
 
@@ -28,7 +29,7 @@ contract('Remittance', function(accounts) {
     describe("Migration", function() {
         var instance;
         before("should deploy Remittance and get the instance", function() {
-            return Remittance.new(BENEFICIARY_HASH, EXCHANGE_SHOP_HASH, { from: owner, gas: MAX_GAS })
+            return Remittance.new(BENEFICIARY_HASH, EXCHANGE_SHOP_HASH, MAX_DELTA_BLOCKS, { from: owner, gas: MAX_GAS })
                 .then(function(_instance) {
                     instance = _instance;
                 });
@@ -72,30 +73,46 @@ contract('Remittance', function(accounts) {
 */
 
     describe("deposit", function() {
+        const deltaBlocks = 1;
+
         var instance;
         before("should deploy Remittance and get the instance", function() {
-            return Remittance.new(BENEFICIARY_HASH, EXCHANGE_SHOP_HASH, { from: owner, gas: MAX_GAS })
+            return Remittance.new(BENEFICIARY_HASH, EXCHANGE_SHOP_HASH, MAX_DELTA_BLOCKS, { from: owner, gas: MAX_GAS })
                 .then(function(_instance) {
                     instance = _instance;
                 });
         });
 
         it("should fail if the value is zero", function() {
-            return instance.deposit.call({sender: owner, value: 0, gas: MAX_GAS})
+            return instance.deposit.call(deltaBlocks, {sender: owner, value: 0, gas: MAX_GAS})
+                .catch(error  =>  {
+                    assert.include(error.message, "VM Exception while processing transaction: revert");
+                });
+        });
+
+        it("should fail if the deltaBlocks is zero", function() {
+            return instance.deposit.call(0, {sender: owner, value: 0, gas: MAX_GAS})
+                .catch(error  =>  {
+                    assert.include(error.message, "VM Exception while processing transaction: revert");
+                });
+        });
+
+        it("should fail if the deltaBlocks greater than limit is zero", function() {
+            return instance.deposit.call(deltaBlocks, {sender: owner, value: 0, gas: MAX_GAS})
                 .catch(error  =>  {
                     assert.include(error.message, "VM Exception while processing transaction: revert");
                 });
         });
 
         it("should fail if the sender is not the owner ", function() {
-            return instance.deposit.call({sender: shop, value: AMOUNT, gas: MAX_GAS})
+            return instance.deposit.call(MAX_DELTA_BLOCKS + 1, {sender: shop, value: AMOUNT, gas: MAX_GAS})
                 .catch(error  =>  {
                     assert.include(error.message, "VM Exception while processing transaction: revert");
                 });
         });
 
         it("should deposit eth ", function() {
-            return instance.deposit({sender: owner, value: AMOUNT, gas: MAX_GAS})
+            return instance.deposit(deltaBlocks, {sender: owner, value: AMOUNT, gas: MAX_GAS})
                 .then(txObject => {
                     assert.equal(txObject.logs.length, 1, "should have received 1 event");
                     assert.equal(txObject.logs[0].event, "LogRemittanceDeposit", "should be LogRemittanceDeposit event");
@@ -106,9 +123,11 @@ contract('Remittance', function(accounts) {
     });
 
     describe("withdraw", function() {
+        const deltaBlocks = 1;
+
         var instance;
         before("should deploy Remittance and get the instance", function() {
-            return Remittance.new(BENEFICIARY_HASH, EXCHANGE_SHOP_HASH, { from: owner, gas: MAX_GAS })
+            return Remittance.new(BENEFICIARY_HASH, EXCHANGE_SHOP_HASH, MAX_DELTA_BLOCKS, { from: owner, gas: MAX_GAS })
                 .then(function(_instance) {
                     instance = _instance;
                 });
@@ -133,7 +152,7 @@ contract('Remittance', function(accounts) {
             //    .then(() => function() {
             //        return instance.withdraw(credit, {sender: first, gas: MAX_GAS});
             //    })
-            return instance.deposit({sender: owner, value: AMOUNT, gas: MAX_GAS})
+            return instance.deposit(deltaBlocks, {sender: owner, value: AMOUNT, gas: MAX_GAS})
                 .then(() => {
                     return instance.whitdraw(BENEFICIARY_HASH, EXCHANGE_SHOP_HASH, {sender: shop, gas: MAX_GAS})
                 })
