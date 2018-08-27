@@ -14,8 +14,8 @@ contract Remittance is Suspendable {
 
     event LogRemittanceCreation(address indexed owner);
     event LogRemittanceDeposit(address indexed sender, uint256 indexed deposit, uint256 indexed blockLimit);
-    event LogRemittanceWithdraw(address indexed caller, uint256 indexed amount, uint256 indexed blockNumber);
-    event LogRemittanceClaim(address indexed caller, uint256 indexed amount, uint256 indexed blockNumber);
+    event LogRemittanceWithdraw(address indexed caller, uint256 indexed amount);
+    event LogRemittanceClaim(address indexed caller, uint256 indexed amount);
 
     constructor(bytes32 _receiverHash, bytes32 _exchangeShopHash, uint256 _maxDeltaBlocks) public {
         timestamp = block.timestamp;
@@ -44,7 +44,7 @@ contract Remittance is Suspendable {
         uint256 amount = value;
         value = 0;
 
-        emit LogRemittanceWithdraw(msg.sender, amount, block.number);
+        emit LogRemittanceWithdraw(msg.sender, amount);
         
         msg.sender.transfer(amount);
     }
@@ -57,7 +57,7 @@ contract Remittance is Suspendable {
 
         value = 0;
 
-        emit LogRemittanceClaim(msg.sender, amount, block.number);
+        emit LogRemittanceClaim(msg.sender, amount);
 
         msg.sender.transfer(amount);
     }

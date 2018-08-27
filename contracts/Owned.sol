@@ -18,9 +18,8 @@ contract Owned {
         require(newOwner != address(0), "invalid owner addreess");
         require(newOwner != owner, "the owner is the same");
 
-        address oldOwner = owner;
         owner = newOwner;
 
-        emit LogOwnedOwnerChanged(oldOwner, newOwner);
+        emit LogOwnedOwnerChanged(msg.sender, newOwner);
     }
 }
