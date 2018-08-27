@@ -34,7 +34,7 @@ contract Remittance is Suspendable {
         emit LogRemittanceDeposit(msg.sender, value, blockLimit);
     }
 
-    function whitdraw(bytes32 _receiverHash, bytes32 _exchangeShopHash) public payable whenNotSuspended {
+    function whitdraw(bytes32 _receiverHash, bytes32 _exchangeShopHash) public whenNotSuspended {
         bytes32 check = keccak256(abi.encodePacked(timestamp, address(this), _receiverHash, _exchangeShopHash));
 
         require(hash == check, "whitdraw: invalid hash"); // check the hash before checking value
