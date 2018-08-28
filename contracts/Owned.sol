@@ -1,7 +1,7 @@
 pragma solidity ^0.4.24;
 
 contract Owned {
-    address public owner;
+    address private owner;
 
     event LogOwnedOwnerChanged(address indexed oldOwner, address indexed newOwner);
 

@@ -6,59 +6,69 @@ import "./SafeMath.sol";
 contract Remittance is Suspendable {
     using SafeMath for uint256;
 
-    bytes32 hash;
-    uint    timestamp;
     uint256 value;
     uint256 public maxDeltaBlocks;  
-    uint256 public blockLimit;  
 
-    event LogRemittanceCreation(address indexed owner);
-    event LogRemittanceDeposit(address indexed sender, uint256 indexed deposit, uint256 indexed blockLimit);
-    event LogRemittanceWithdraw(address indexed caller, uint256 indexed amount);
+    struct Deposit {
+        uint256 amount;
+        uint256 limit;
+    }
+    mapping(bytes32 => Deposit) public deposits;
+
+    event LogRemittanceCreation(address indexed owner, uint256 maxDeltaBlocks);
+    event LogRemittanceDeposit(bytes32 hash, address indexed sender, uint256 indexed deposit, uint256 indexed blockLimit);
+    event LogRemittanceWithdraw(bytes32 hash, address indexed caller, uint256 indexed amount);
     event LogRemittanceClaim(address indexed caller, uint256 indexed amount);
 
-    constructor(bytes32 _receiverHash, bytes32 _exchangeShopHash, uint256 _maxDeltaBlocks) public {
-        timestamp = block.timestamp;
-        hash = keccak256(abi.encodePacked(timestamp, address(this), _receiverHash, _exchangeShopHash));
+    constructor(uint256 _maxDeltaBlocks) public {
+//        hash = keccak256(abi.encodePacked(timestamp, address(this), _receiverHash, _exchangeShopHash));
         maxDeltaBlocks = _maxDeltaBlocks;
-        emit LogRemittanceCreation(msg.sender);
+        emit LogRemittanceCreation(msg.sender, maxDeltaBlocks);
     }
 
-    function deposit(uint256 deltaBlocks) public payable onlyOwner whenNotSuspended {
+    function deposit(bytes32 hash, uint256 deltaBlocks) public payable onlyOwner whenNotSuspended {
         require(0 < deltaBlocks && deltaBlocks <= maxDeltaBlocks, "deposit: deltaBlock out of range");
         require(msg.value != 0, "deposit: value cannot be zero");
 
-        value = msg.value;
-        blockLimit = block.number + deltaBlocks;
+        Deposit storage dep = deposits[hash];
+        dep.amount  = msg.value;
+        dep.limit   = block.number + deltaBlocks;
         
-        emit LogRemittanceDeposit(msg.sender, value, blockLimit);
+        emit LogRemittanceDeposit(hash, msg.sender, dep.amount, dep.limit);
     }
 
-    function whitdraw(bytes32 _receiverHash, bytes32 _exchangeShopHash) public whenNotSuspended {
-        bytes32 check = keccak256(abi.encodePacked(timestamp, address(this), _receiverHash, _exchangeShopHash));
+    function whitdraw(bytes32 receiverHash, bytes32 exchangeShopHash) public whenNotSuspended {
+        bytes32 hash = makeHash(receiverHash, exchangeShopHash, msg.sender);
+        
+        Deposit storage dep = deposits[hash];
 
-        require(hash == check, "whitdraw: invalid hash"); // check the hash before checking value
-        require(block.number <= blockLimit, "withdraw: block.number greater than limit");
-        require(value > 0 , "whitdraw: no deposit");
+        require(dep.amount > 0, "withdraw: no deposit available");
+        require(block.number <= dep.limit, "withdraw: block.number greater than limit");
 
-        uint256 amount = value;
-        value = 0;
+        uint256 amount = dep.amount;
+        dep.amount = 0;
 
-        emit LogRemittanceWithdraw(msg.sender, amount);
+        emit LogRemittanceWithdraw(hash, msg.sender, amount);
         
         msg.sender.transfer(amount);
     }
     
-    function claim() public onlyOwner {
-        require(block.number > blockLimit, "claim: block.number less than limit");
-        require(value > 0 , "claim: no deposit");
-        
-        uint256 amount = value;
+    function claim(bytes32 hash) public onlyOwner whenNotSuspended {
+        Deposit storage dep = deposits[hash];
 
-        value = 0;
+        require(dep.amount > 0 , "claim: no deposit");
+        require(block.number > dep.limit, "claim: block.number less than limit");
+        
+        uint256 amount = dep.amount;
+        dep.amount = 0;
 
         emit LogRemittanceClaim(msg.sender, amount);
 
         msg.sender.transfer(amount);
     }
+
+    function makeHash(bytes32 _receiverHash, bytes32 _exchangeShopHash, address exchangeShop) public constant returns(bytes32 madeHash) {
+        return keccak256(abi.encodePacked(address(this), _receiverHash, _exchangeShopHash, exchangeShop));
+    }
+
 }

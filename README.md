@@ -37,13 +37,20 @@ Stretch goals:
 
 ### Added:
 - deadline to claim back ether and its limit
+- made the contract an utility contract so the owner can send eth to everybody trought an exchange shop
+- strenghten the puzzle
+    1. the owner 
+        1.1 build piece for shop and receiver 
+        1.2. make an hash (the solution) using the utility function in conctract
+        1.3. deposit eth using hash
+    2. the shop withdraws eth using whitdraw function providing the beneficiary piece, its piece and its address  
+    3. the owner can claim eth using the hash previously built 
 
 ### Pending
 - some stretch goals
 - how test block limit trespassing?
 
 ### Missings 
-- test for claim
 
 
 ### Other

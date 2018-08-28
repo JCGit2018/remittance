@@ -6,7 +6,7 @@ contract Suspendable is Owned {
     event LogSuspended(address indexed sender);
     event LogResumed(address indexed sender);
 
-    bool public suspended;
+    bool private suspended;
 
     modifier whenNotSuspended() {
         require(!suspended);
