@@ -8,7 +8,8 @@ module.exports = function(deployer, network, accounts) {
     let owner = accounts[0];
     
     const GAS_LIMIT        = 2000000;
+    const COMMISSION       = 10;
     const MAX_DELTA_BLOCKS = 100;
 
-  	deployer.deploy(Remittance, MAX_DELTA_BLOCKS, { from: owner, gas: GAS_LIMIT });
+  	deployer.deploy(Remittance, COMMISSION, MAX_DELTA_BLOCKS, { from: owner, gas: GAS_LIMIT });
 };

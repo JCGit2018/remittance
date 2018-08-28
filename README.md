@@ -34,6 +34,12 @@ Stretch goals:
 - did you degrade safety in the name of adding features?
 
 ### Hypothesis:
+- Alice is not (longer) the contract owner as it is an utility contract used by anyone to send ether
+    to an exchange shop to give money to someone
+- Alice (or someone else) can deposit eth several times using the same solution (hash): this renews 
+    the limit expiration 
+- Alice (or someone else) has to pay a (little) commission to the contract owner: the commission is payed
+    at withdraw time (is it right?.....)
 
 ### Added:
 - deadline to claim back ether and its limit
@@ -45,12 +51,13 @@ Stretch goals:
         1.3. deposit eth using hash
     2. the shop withdraws eth using whitdraw function providing the beneficiary piece, its piece and its address  
     3. the owner can claim eth using the hash previously built 
+- added commission for contract owner
 
 ### Pending
 - some stretch goals
 - how test block limit trespassing?
 
 ### Missings 
-
+- some test for fee
 
 ### Other

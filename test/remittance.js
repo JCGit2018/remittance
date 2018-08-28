@@ -8,26 +8,29 @@ web3.eth.expectedExceptionPromise = require("../utils/expectedException.js");
 const Remittance = artifacts.require("./Remittance.sol");
 
 contract('Remittance', function(accounts) {
-    const MAX_GAS = 3000000;
-    const AMOUNT = web3.toWei(0.007, 'ether'); // deposit value
+    const MAX_GAS          = 3000000;
 
-    const EXCHANGE_HASH = web3.sha3("exchangeSecret");
-    const BENEFICIARY_HASH   = web3.sha3("beneficiarySecret");
-    const MAX_DELTA_BLOCKS   = 100;
+    const AMOUNT           = web3.toWei(0.007, 'ether'); // deposit value
+    const COMMISSION       = web3.toWei(0.003, 'ether'); 
+    const MAX_DELTA_BLOCKS = 200;
+
+    const EXCHANGE_HASH    = web3.sha3("exchangeSecret");
+    const BENEFICIARY_HASH = web3.sha3("beneficiarySecret");
 
     console.log(accounts);
 
-    var exchange;
     var owner;
+    var payer;
+    var exchange;
     before("check accounts number", function() {
-        assert.isAtLeast(accounts.length, 2, "not enough accounts");
-        [owner, exchange] = accounts;
+        assert.isAtLeast(accounts.length, 3, "not enough accounts");
+        [owner, payer, exchange] = accounts;
     });
 
     describe("Try migration", function() {
         var instance;
         before("should deploy Remittance and get the instance", function() {
-            return Remittance.new(MAX_DELTA_BLOCKS, { from: owner, gas: MAX_GAS })
+            return Remittance.new(COMMISSION, MAX_DELTA_BLOCKS, { from: owner, gas: MAX_GAS })
                 .then(function(_instance) {
                     instance = _instance;
                 });
@@ -39,19 +42,28 @@ contract('Remittance', function(accounts) {
                         _maxDeltaBlocks.toString(10),
                         "" + MAX_DELTA_BLOCKS,
                         "should have MAX_DELTA_BLOCKS");
+
+                    return instance.commission() 
+                })
+                .then(_commission => {
+                    assert.equal(
+                        _commission.toString(10),
+                        "" + COMMISSION,
+                        "should have COMMISSION");
                 });
         });
     });
 
-    describe("Try  makeHash", function() {
+    describe("Try makeHash", function() {
         var instance;
         var rightHash;
         before("should deploy Remittance, get the instance and right hash", function() {
-            return Remittance.new(MAX_DELTA_BLOCKS, { from: owner, gas: MAX_GAS })
+            return Remittance.new(COMMISSION, MAX_DELTA_BLOCKS, { from: owner, gas: MAX_GAS })
                 .then(_instance => {
                     instance = _instance;
                     return instance.makeHash(BENEFICIARY_HASH, EXCHANGE_HASH, exchange);
-                }).then(_hash => {
+                })
+                .then(_hash => {
                     rightHash = _hash;
                 });
         });
@@ -71,73 +83,74 @@ contract('Remittance', function(accounts) {
     });
     
 
-    describe("Try  deposit", function() {
+    describe("Try deposit", function() {
         const deltaBlocks = 1;
 
         var instance;
         var rightHash;
         before("should deploy Remittance, get the instance and right hash", function() {
-            return Remittance.new(MAX_DELTA_BLOCKS, { from: owner, gas: MAX_GAS })
+            return Remittance.new(COMMISSION, MAX_DELTA_BLOCKS, { from: owner, gas: MAX_GAS })
                 .then(_instance => {
                     instance = _instance;
                     return instance.makeHash(BENEFICIARY_HASH, EXCHANGE_HASH, exchange);
-                }).then(_hash => {
+                })
+                .then(_hash => {
                     rightHash = _hash;
                 });
         });
 
         it("should fail if the value is zero", function() {
-            return instance.deposit.call(rightHash, deltaBlocks, {from: owner, value: 0, gas: MAX_GAS})
+            return instance.deposit.call(rightHash, deltaBlocks, {from: payer, value: 0, gas: MAX_GAS})
                 .catch(error  =>  {
                     assert.include(error.message, "VM Exception while processing transaction: revert");
                 });
         });
 
         it("should fail if the deltaBlocks is zero", function() {
-            return instance.deposit.call(rightHash, 0, {from: owner, value: 0, gas: MAX_GAS})
+            return instance.deposit.call(rightHash, 0, {from: payer, value: 0, gas: MAX_GAS})
                 .catch(error  =>  {
                     assert.include(error.message, "VM Exception while processing transaction: revert");
                 });
         });
 
-        it("should fail if the deltaBlocks greater than limit is zero", function() {
-            return instance.deposit.call(rightHash, MAX_DELTA_BLOCKS + 1, {from: owner, value: 0, gas: MAX_GAS})
-                .catch(error  =>  {
-                    assert.include(error.message, "VM Exception while processing transaction: revert");
-                });
-        });
-
-        it("should fail if the sender is not the owner ", function() {
-            return instance.deposit.call(rightHash, deltaBlocks, {from: exchange, value: AMOUNT, gas: MAX_GAS})
+        it("should fail if the deltaBlocks greater than limit", function() {
+            return instance.deposit.call(rightHash, MAX_DELTA_BLOCKS + 1, {from: payer, value: 0, gas: MAX_GAS})
                 .catch(error  =>  {
                     assert.include(error.message, "VM Exception while processing transaction: revert");
                 });
         });
 
         it("should deposit eth ", function() {
-            return instance.deposit(rightHash, deltaBlocks, {from: owner, value: AMOUNT, gas: MAX_GAS})
+            return instance.deposit(rightHash, deltaBlocks, {from: payer, value: AMOUNT, gas: MAX_GAS})
                 .then(txObject => {
                     assert.equal(txObject.logs.length, 1, "should have received 1 event");
                     assert.equal(txObject.logs[0].event, "LogRemittanceDeposit", "should be LogRemittanceDeposit event");
-                    assert.equal(txObject.logs[0].args.sender, owner, "sender should be the owner");
+                    assert.equal(txObject.logs[0].args.sender, payer, "sender should be the payer");
                     assert.equal(txObject.logs[0].args.deposit, AMOUNT, "should be the deposit value");
-                });
+                })
+                .then(() => {
+                    return instance.deposits(rightHash)
+                })
+                .then(_deposit => {
+                    assert.equal(_deposit[0].toString(10), "" + AMOUNT, "deposit should be AMOUNT");
+                });;
         });
     });
 
     describe("Try withdraw", function() {
-        const deltaBlocks = 20;
+        const deltaBlocks = 100;
 
         var instance;
         var hash;
         before("should deploy Remittance, get the instance and deposit some amount", function() {
-            return Remittance.new(MAX_DELTA_BLOCKS, { from: owner, gas: MAX_GAS })
+            return Remittance.new(COMMISSION, MAX_DELTA_BLOCKS, { from: owner, gas: MAX_GAS })
                 .then(_instance => {
                     instance = _instance;
                     return instance.makeHash(BENEFICIARY_HASH, EXCHANGE_HASH, exchange);
-                }).then(_hash => {
+                })
+                .then(_hash => {
                     hash = _hash;
-                    return instance.deposit(hash, deltaBlocks, {from: owner, value: AMOUNT, gas: MAX_GAS})
+                    return instance.deposit(hash, deltaBlocks, {from: payer, value: AMOUNT, gas: MAX_GAS})
                 });
         });
 
@@ -163,17 +176,23 @@ contract('Remittance', function(accounts) {
         });
 
         it("should withdraw eth ", function() {
-            let deposit;
-            return instance.deposits(hash)
+            let depositAmount;
+            let commission;
+            return instance.commission()
+                .then(_commission => {
+                    commission = _commission.toNumber();
+                    return instance.deposits(hash)
+                })
                 .then(_deposit => {
-                    deposit = _deposit;
+                    depositAmount = _deposit[0].toNumber();
                     return instance.whitdraw(BENEFICIARY_HASH, EXCHANGE_HASH, {from: exchange, gas: MAX_GAS})
                 })
                 .then(txObject => {
+                    let amount = depositAmount - commission;
                     assert.equal(txObject.logs.length, 1, "should have received 1 event");
                     assert.equal(txObject.logs[0].event, "LogRemittanceWithdraw", "should be LogRemittanceWithdraw event");
                     assert.equal(txObject.logs[0].args.caller, exchange, "should be the exchange ");
-                    assert.equal(txObject.logs[0].args.amount.toString(10), "" + deposit[0].toString(10), "should be the whole deposit value");
+                    assert.equal(txObject.logs[0].args.amount.toNumber(), amount, "should be the whole deposit value less commission");
                 });
         });
 
@@ -197,40 +216,41 @@ contract('Remittance', function(accounts) {
         var instance;
         var hash;
         before("should deploy Remittance, get the instance and deposit some amount", function() {
-            return Remittance.new(MAX_DELTA_BLOCKS, { from: owner, gas: MAX_GAS })
+            return Remittance.new(COMMISSION, MAX_DELTA_BLOCKS, { from: owner, gas: MAX_GAS })
                 .then(_instance => {
                     instance = _instance;
                     return instance.makeHash(BENEFICIARY_HASH, EXCHANGE_HASH, exchange);
-                }).then(_hash => {
+                })
+                .then(_hash => {
                     hash = _hash;
-                    return instance.deposit(hash, deltaBlocks, {from: owner, value: AMOUNT, gas: MAX_GAS})
+                    return instance.deposit(hash, deltaBlocks, {from: payer, value: AMOUNT, gas: MAX_GAS})
                 });
         });
 
         it("should fail if the block is not expired ", function() {
             return web3.eth.expectedExceptionPromise(function() {
-                    return instance.claim(hash, {from: owner, gas: MAX_GAS})
+                    return instance.claim(hash, {from: payer, gas: MAX_GAS})
                 }, MAX_GAS)
         });
 
         it("should fail if the deposit is empty ", function() {
             return web3.eth.expectedExceptionPromise(function() {
-                return instance.claim(web3.sha3(""), {from: owner, gas: MAX_GAS})
+                return instance.claim(web3.sha3(""), {from: payer, gas: MAX_GAS})
                 }, MAX_GAS)
         });
 
-        it("should fail if the caller is not the owner ", function() {
+        it("should fail if the caller is not the deposit owner ", function() {
             return web3.eth.expectedExceptionPromise(function() {
-                    return instance.claim(hash, {from: exchange, gas: MAX_GAS})
+                    return instance.claim(hash, {from: owner, gas: MAX_GAS})
                 }, MAX_GAS)
         });
 
         it("should fail if the value is not the deposit ", function() {
-            return instance.claim(hash, {from: owner, gas: MAX_GAS})
+            return instance.claim(hash, {from: payer, gas: MAX_GAS})
                 .then(txObject => {
                     assert.equal(txObject.logs.length, 1, "should have received 1 event");
                     assert.equal(txObject.logs[0].event, "LogRemittanceClaim", "should be LogRemittanceClaim event");
-                    assert.equal(txObject.logs[0].args.caller, owner, "should be the owner ");
+                    assert.equal(txObject.logs[0].args.caller, payer, "should be the payer ");
                     assert.equal(txObject.logs[0].args.amount.toString(10), "" + AMOUNT, "should be the whole deposit value");
                 });
         });
